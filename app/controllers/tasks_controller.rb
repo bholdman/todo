@@ -6,7 +6,9 @@ class TasksController < ApplicationController
   # GET /tasks
   # GET /tasks.json
   def index
-    @tasks = Task.all
+    # A user's default view is filtered to show only incomplete tasks. 
+    # @tasks = Task.where(completed: false)
+    @tasks = current_user.tasks
   end
 
   # GET /tasks/1
@@ -15,7 +17,7 @@ class TasksController < ApplicationController
 
   # GET /tasks/new
   def new
-    @task = Task.new
+    @task = Task.new(task_list_id: params[:task_list])
   end
 
   # GET /tasks/1/edit
@@ -25,11 +27,12 @@ class TasksController < ApplicationController
   # POST /tasks.json
   def create
     @task = Task.new(task_params)
-
+    @task.user_id = current_user.id
+    TaskAudit.create(task_id: @task.id, audit_action: 'created', from_value: nil, to_value: nil)
     respond_to do |format|
       if @task.save
-        format.html { redirect_to tasks_path, notice: 'Task was successfully created.' }
-        format.json { render :show, status: :created, location: @task }
+        format.html { redirect_to task_list_path(@task.task_list), notice: 'Task was successfully created.' }
+        format.json { render :index, status: :created, location: @task.task_list }
 
       else
         format.html { render :new }
@@ -43,8 +46,9 @@ class TasksController < ApplicationController
   def update
     respond_to do |format|
       if @task.update(task_params)
-        format.html { redirect_to tasks_path, notice: 'Task was successfully updated.' }
-        format.json { render :show, status: :ok, location: @task }
+        TaskAudit.create(task: @task, audit_action: 'edited', to_value: task_params)
+        format.html { redirect_to task_list_path(@task.task_list), notice: 'Task was successfully updated.' }
+        format.json { render :show, status: :ok, location: @task.task_list }
       else
         format.html { render :edit }
         format.json { render json: @task.errors, status: :unprocessable_entity }
@@ -57,7 +61,7 @@ class TasksController < ApplicationController
   def destroy
     @task.destroy
     respond_to do |format|
-      format.html { redirect_to tasks_url, notice: 'Task was successfully destroyed.' }
+      format.html { redirect_to task_list_path(@task.task_list), notice: 'Task was successfully destroyed.' }
       format.json { head :no_content }
     end
   end
@@ -71,6 +75,6 @@ class TasksController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def task_params
-    params.require(:task).permit(:name, :completed)
+    params.require(:task).permit(:name, :completed, :task_list_id)
   end
 end
